@@ -1,0 +1,4 @@
+Open Source Software Package:
+- name: webOSOSE-jemalloc
+  source: https://github.com/webosose/jemalloc
+  license: Apache-2.0
