@@ -178,7 +178,9 @@
 #include <sys/param.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#if ! ( (__GLIBC__  > 2) || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 32) )
 #include <sys/sysctl.h>
+#endif
 #include <sys/uio.h>
 
 #include <errno.h>
