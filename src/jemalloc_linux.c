@@ -4886,7 +4886,7 @@ malloc_init_hard(void)
 	unsigned i;
 	int linklen;
 	char buf[PATH_MAX + 1];
-	const char *opts;
+	const char *opts = NULL;
 
 	malloc_mutex_lock(&init_lock);
 	if (malloc_initialized) {
@@ -4968,6 +4968,11 @@ malloc_init_hard(void)
 		default:
 			/* NOTREACHED */
 			assert(false);
+		}
+
+		if(opts == NULL) {
+			malloc_mutex_unlock(&init_lock);
+			return (false);
 		}
 
 		for (j = 0; opts[j] != '\0'; j++) {
