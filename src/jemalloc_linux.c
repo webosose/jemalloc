@@ -1,6 +1,6 @@
 /*-
  * Copyright (C) 2008 Jason Evans <jasone@FreeBSD.org>.
- * Copyright (c) 2008-2021 LG Electronics, Inc.
+ * Copyright (c) 2008-2023 LG Electronics, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1660,9 +1660,10 @@ base_calloc(size_t number, size_t size)
 	void *ret;
 
 	ret = base_alloc(number * size);
-	memset(ret, 0, number * size);
-
-	return (ret);
+        if (ret) {
+           memset(ret, 0, number * size);
+        }
+        return (ret);
 }
 
 static extent_node_t *
