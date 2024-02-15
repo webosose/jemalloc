@@ -1,6 +1,6 @@
 /*-
  * Copyright (C) 2008 Jason Evans <jasone@FreeBSD.org>.
- * Copyright (c) 2008-2023 LG Electronics, Inc.
+ * Copyright (c) 2008-2024 LG Electronics, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -2011,6 +2011,8 @@ chunk_alloc_mmap(size_t size)
 		return (NULL);
 
 	offset = CHUNK_ADDR2OFFSET(ret);
+        bool flag_offset = false;
+        void *ret_saved = NULL;
 	if (offset != 0) {
 		/* Try to extend chunk boundary. */
 		if (pages_map((void *)((uintptr_t)ret + size),
@@ -2033,13 +2035,13 @@ chunk_alloc_mmap(size_t size)
 			offset = CHUNK_ADDR2OFFSET(ret);
 			if (offset != 0) {
 				/* Leading space. */
+                            flag_offset = true;
+                            ret_saved = (void *)((uintptr_t)ret +
+                                     (chunksize - offset));
 				pages_unmap(ret, chunksize - offset);
 
-				ret = (void *)((uintptr_t)ret +
-				    (chunksize - offset));
-
 				/* Trailing space. */
-				pages_unmap((void *)((uintptr_t)ret + size),
+                            pages_unmap((void *)((uintptr_t)ret_saved + size),
 				    offset);
 			} else {
 				/* Trailing space only. */
@@ -2047,13 +2049,13 @@ chunk_alloc_mmap(size_t size)
 				    chunksize);
 			}
 		} else {
+                        flag_offset = true;
 			/* Clean up unneeded leading space. */
+                        ret_saved = (void *)((uintptr_t)ret + (chunksize - offset));
 			pages_unmap(ret, chunksize - offset);
-			ret = (void *)((uintptr_t)ret + (chunksize - offset));
 		}
 	}
-
-	return (ret);
+        return (flag_offset ? ret_saved : ret);
 }
 
 static void *
@@ -4450,29 +4452,30 @@ huge_palloc(size_t alignment, size_t size)
 	offset = (uintptr_t)ret & (alignment - 1);
 	assert((offset & chunksize_mask) == 0);
 	assert(offset < alloc_size);
+        void *ret_saved = NULL;
+        bool flag_offset = false;
 	if (offset == 0) {
 		/* Trim trailing space. */
 		chunk_dealloc((void *)((uintptr_t)ret + chunk_size), alloc_size
 		    - chunk_size);
 	} else {
 		size_t trailsize;
-
+                flag_offset = true;
+                ret_saved = (void *)((uintptr_t)ret + (alignment - offset));
 		/* Trim leading space. */
 		chunk_dealloc(ret, alignment - offset);
-
-		ret = (void *)((uintptr_t)ret + (alignment - offset));
 
 		trailsize = alloc_size - (alignment - offset) - chunk_size;
 		if (trailsize != 0) {
 		    /* Trim trailing space. */
 		    assert(trailsize < alloc_size);
-		    chunk_dealloc((void *)((uintptr_t)ret + chunk_size),
+                chunk_dealloc((void *)((uintptr_t)ret_saved + chunk_size),
 			trailsize);
 		}
 	}
 
 	/* Insert node into huge. */
-	node->addr = ret;
+        node->addr = (flag_offset ? ret_saved : ret);
 	node->size = chunk_size;
 
 	malloc_mutex_lock(&huge_mtx);
@@ -4484,11 +4487,11 @@ huge_palloc(size_t alignment, size_t size)
 	malloc_mutex_unlock(&huge_mtx);
 
 	if (opt_junk)
-		memset(ret, 0xa5, chunk_size);
+        memset((flag_offset ? ret_saved : ret), 0xa5, chunk_size);
 	else if (opt_zero)
-		memset(ret, 0, chunk_size);
+        memset((flag_offset ? ret_saved : ret), 0, chunk_size);
 
-	return (ret);
+    return (flag_offset ? ret_saved : ret);
 }
 
 static void *
